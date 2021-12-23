@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
+from torch.distributions import MultivariateNormal
 
 class FullyConnectedBrain(nn.Module):
   """Simple Fully Connected Brain"""
@@ -244,7 +245,7 @@ class FCActorCriticBrain(nn.Module):
     self.actor = [nn.Linear(h_size[0], h_size[1]) for h_size in layers]
     self.actor = nn.ModuleList(self.actor) 
 
-    self.log_std = nn.Parameter(torch.ones(1, action_size) * std)
+    self.log_std = nn.Parameter(torch.ones(action_size) * std)
     
   def forward(self, state):
     x = state
@@ -252,12 +253,18 @@ class FCActorCriticBrain(nn.Module):
       x = F.relu(layer(x))
     value =  self.critic[-1](x)
 
+    # print('value', value.size())
+
     x = state
     for layer in self.actor[:-1]:
       x = F.relu(layer(x))
     mu =  self.actor[-1](x)
     
-    std   = self.log_std.exp().expand_as(mu)
-    dist  = Normal(mu, std)
+    # print('mu', mu.shape)
+    # print('self.log_std', self.log_std.shape)
+
+    std   = self.log_std.exp()
+    cov_mat = torch.diag(std).unsqueeze(dim=0).cuda()
+    dist  = MultivariateNormal(mu, cov_mat)
     
     return dist, value
